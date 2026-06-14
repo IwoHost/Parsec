@@ -754,16 +754,16 @@ def render(stdscr):
     dry_warn="▲AW!" if dry else ""
     footer=f" {dry_warn}[D]ispatch [H]ire [R]esearch [F]acility [S]ave [Q]uit  runs:{G['runs']} clr:{G['clearance']}"
     _put(stdscr,h-1,0,footer[:w-1],_cp(CD))
-    stdscr.noutrefresh()
     # Modal
     if MODAL["type"]: _render_modal(stdscr,h,w)
+    stdscr.noutrefresh()
     curses.doupdate()
 
 def _render_modal(stdscr,h,w):
     mt=MODAL["type"]; md=MODAL["data"]
     mw=min(62,w-4); mh=min(22,h-4)
     mx=(w-mw)//2; my=(h-mh)//2
-    win=curses.newwin(mh,mw,my,mx)
+    win=stdscr.derwin(mh,mw,my,mx)
     win.erase()
     try: win.border()
     except curses.error: pass
@@ -777,7 +777,7 @@ def _render_modal(stdscr,h,w):
             cur="▶" if sel else " "
             _put(win,2+i,1,f"{cur}{tag:<9}{L['name'][:18]}  {int(L['danger']*100)}%"[:mw-2],
                 _cp(CA,bold=True) if sel else _cp(CD))
-        _put(win,mh-1,1,"↑↓=select  Enter=dispatch  Esc=cancel",_cp(CD,dim=True))
+        _put(win,mh-1,1,"←↑↓→=select  Enter=dispatch  Esc=cancel",_cp(CD,dim=True))
     elif mt=="dispatch":
         L=md.get("L"); sel=md.get("sel",[])
         _put(win,0,2,f" {_lv_tag(L)} · {L['name'][:28]} ",_cp(CA,bold=True))
@@ -799,7 +799,7 @@ def _render_modal(stdscr,h,w):
                 _put(win,5+i,1,f"{cur}{chk} {o['name'][:15]} G{o['grit']}{sp}{tr}"[:mw-2],
                     _cp(CA) if o["id"] in sel else _cp(CD))
         cost=_supply_cost(L,len(sel)); ok=G["res"]["aw"]>=cost and bool(sel)
-        _put(win,mh-2,1,f"Supply: {cost} AW  {len(sel)} assigned  —  Enter=deploy  Esc=cancel",
+        _put(win,mh-2,1,f"Supply: {cost} AW  {len(sel)} assigned  —  ←↑↓→=move  Enter=deploy  Esc=cancel",
              _cp(CG if ok else CR))
     elif mt=="spec":
         op=md.get("op"); specs=list(SPECS.items())
@@ -810,7 +810,7 @@ def _render_modal(stdscr,h,w):
             cur="▶" if i==MODAL["cursor"] else " "
             _put(win,5+i*2,1,f"{cur}{s['icon']} {s['name']}",_cp(CA,bold=(i==MODAL["cursor"])))
             _put(win,6+i*2,4,s["desc"][:mw-5],_cp(CD,dim=True))
-        _put(win,mh-1,2,"↑↓=select  Enter=confirm",_cp(CD,dim=True))
+        _put(win,mh-1,2,"←↑↓→=select  Enter=confirm",_cp(CD,dim=True))
     elif mt=="gameover":
         _put(win,0,2," CONTAINMENT LOST ",_cp(CR,bold=True))
         _put(win,3,2,md.get("reason","Site coherence failed.")[:mw-4],_cp(CR))
@@ -818,7 +818,7 @@ def _render_modal(stdscr,h,w):
         opts=["▶ Reinitialise site","  Quit"]
         for i,o in enumerate(opts):
             _put(win,7+i,2,o,_cp(CA,bold=(i==MODAL["cursor"])) if i==MODAL["cursor"] else _cp(CD))
-        _put(win,mh-1,2,"↑↓=select  Enter=confirm",_cp(CD,dim=True))
+        _put(win,mh-1,2,"←↑↓→=select  Enter=confirm",_cp(CD,dim=True))
     elif mt=="facility":
         _put(win,0,2," FACILITY UPGRADES ",_cp(CW,bold=True))
         for i,fd in enumerate(FACILITY_DEFS):
@@ -830,7 +830,7 @@ def _render_modal(stdscr,h,w):
             cur="▶" if i==MODAL["cursor"] else " "
             _put(win,2+i*2,1,f"{cur}{fd['name']} L{lvl} [{cs}]"[:mw-2],_cp(CA if can else CD,bold=(i==MODAL["cursor"])))
             _put(win,3+i*2,3,fd["desc"],_cp(CD,dim=True))
-        _put(win,mh-1,2,"↑↓=select  Enter=buy  Esc=cancel",_cp(CD,dim=True))
+        _put(win,mh-1,2,"←↑↓→=select  Enter=buy  Esc=cancel",_cp(CD,dim=True))
     elif mt=="tech_pick":
         avail=md.get("avail",[])
         _put(win,0,2," RESEARCH ",_cp(CB,bold=True))
@@ -842,9 +842,7 @@ def _render_modal(stdscr,h,w):
             _put(win,2+i*2,1,f"{cur}[{t['tag'][:3]}] {t['name'][:18]} {cs}"[:mw-2],
                 _cp(CA if can else CD,bold=(i==MODAL["cursor"])))
             _put(win,3+i*2,4,t["desc"][:mw-5],_cp(CD,dim=True))
-        _put(win,mh-1,2,"↑↓=select  Enter=research  Esc=cancel",_cp(CD,dim=True))
-    win.touchwin()
-    win.noutrefresh()
+        _put(win,mh-1,2,"←↑↓→=select  Enter=research  Esc=cancel",_cp(CD,dim=True))
 
 # ════════════════════════════════════════════════ INPUT ══════════════════════
 
@@ -855,8 +853,8 @@ def handle_key(key):
     mt=MODAL["type"]
     if mt=="level_pick":
         unlocked=[L for L in LEVELS if _lv_unlocked(L)]
-        if key==curses.KEY_UP: MODAL["cursor"]=max(0,MODAL["cursor"]-1)
-        elif key==curses.KEY_DOWN: MODAL["cursor"]=min(len(unlocked)-1,MODAL["cursor"]+1)
+        if key in (curses.KEY_UP,curses.KEY_LEFT): MODAL["cursor"]=max(0,MODAL["cursor"]-1)
+        elif key in (curses.KEY_DOWN,curses.KEY_RIGHT): MODAL["cursor"]=min(len(unlocked)-1,MODAL["cursor"]+1)
         elif key in (10,13,curses.KEY_ENTER):
             if 0<=MODAL["cursor"]<len(unlocked):
                 L=unlocked[MODAL["cursor"]]
@@ -865,8 +863,8 @@ def handle_key(key):
         return None
     if mt=="dispatch":
         md=MODAL["data"]; L=md.get("L"); sel=md.get("sel",[]); idle=[o for o in G["ops"] if o["status"]=="idle"]
-        if key==curses.KEY_UP: MODAL["cursor"]=max(0,MODAL["cursor"]-1)
-        elif key==curses.KEY_DOWN: MODAL["cursor"]=min(max(0,len(idle)-1),MODAL["cursor"]+1)
+        if key in (curses.KEY_UP,curses.KEY_LEFT): MODAL["cursor"]=max(0,MODAL["cursor"]-1)
+        elif key in (curses.KEY_DOWN,curses.KEY_RIGHT): MODAL["cursor"]=min(max(0,len(idle)-1),MODAL["cursor"]+1)
         elif key==ord(' '):
             if 0<=MODAL["cursor"]<len(idle):
                 oid=idle[MODAL["cursor"]]["id"]
@@ -881,23 +879,23 @@ def handle_key(key):
         return None
     if mt=="spec":
         specs=list(SPECS.keys()); op=MODAL["data"].get("op")
-        if key==curses.KEY_UP: MODAL["cursor"]=max(0,MODAL["cursor"]-1)
-        elif key==curses.KEY_DOWN: MODAL["cursor"]=min(len(specs)-1,MODAL["cursor"]+1)
+        if key in (curses.KEY_UP,curses.KEY_LEFT): MODAL["cursor"]=max(0,MODAL["cursor"]-1)
+        elif key in (curses.KEY_DOWN,curses.KEY_RIGHT): MODAL["cursor"]=min(len(specs)-1,MODAL["cursor"]+1)
         elif key in (10,13,curses.KEY_ENTER):
             if op and 0<=MODAL["cursor"]<len(specs):
                 op["spec"]=specs[MODAL["cursor"]]; op["_needs_spec"]=False
                 _log(f"{op['name']} → {SPECS[op['spec']]['name']}.","achieve"); MODAL["type"]=None
         return None
     if mt=="gameover":
-        if key==curses.KEY_UP: MODAL["cursor"]=0
-        elif key==curses.KEY_DOWN: MODAL["cursor"]=1
+        if key in (curses.KEY_UP,curses.KEY_LEFT): MODAL["cursor"]=0
+        elif key in (curses.KEY_DOWN,curses.KEY_RIGHT): MODAL["cursor"]=1
         elif key in (10,13,curses.KEY_ENTER):
             if MODAL["cursor"]==0: MODAL["type"]=None; new_game()
             else: return "quit"
         return None
     if mt=="facility":
-        if key==curses.KEY_UP: MODAL["cursor"]=max(0,MODAL["cursor"]-1)
-        elif key==curses.KEY_DOWN: MODAL["cursor"]=min(len(FACILITY_DEFS)-1,MODAL["cursor"]+1)
+        if key in (curses.KEY_UP,curses.KEY_LEFT): MODAL["cursor"]=max(0,MODAL["cursor"]-1)
+        elif key in (curses.KEY_DOWN,curses.KEY_RIGHT): MODAL["cursor"]=min(len(FACILITY_DEFS)-1,MODAL["cursor"]+1)
         elif key in (10,13,curses.KEY_ENTER):
             fd=FACILITY_DEFS[MODAL["cursor"]]
             if not buy_facility(fd["id"]): _status("Cannot afford.")
@@ -905,8 +903,8 @@ def handle_key(key):
         return None
     if mt=="tech_pick":
         avail=MODAL["data"].get("avail",[])
-        if key==curses.KEY_UP: MODAL["cursor"]=max(0,MODAL["cursor"]-1)
-        elif key==curses.KEY_DOWN: MODAL["cursor"]=min(max(0,len(avail)-1),MODAL["cursor"]+1)
+        if key in (curses.KEY_UP,curses.KEY_LEFT): MODAL["cursor"]=max(0,MODAL["cursor"]-1)
+        elif key in (curses.KEY_DOWN,curses.KEY_RIGHT): MODAL["cursor"]=min(max(0,len(avail)-1),MODAL["cursor"]+1)
         elif key in (10,13,curses.KEY_ENTER):
             if 0<=MODAL["cursor"]<len(avail):
                 ok,err=buy_tech(avail[MODAL["cursor"]]["id"])

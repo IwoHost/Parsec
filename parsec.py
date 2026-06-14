@@ -843,6 +843,7 @@ def _render_modal(stdscr,h,w):
                 _cp(CA if can else CD,bold=(i==MODAL["cursor"])))
             _put(win,3+i*2,4,t["desc"][:mw-5],_cp(CD,dim=True))
         _put(win,mh-1,2,"↑↓=select  Enter=research  Esc=cancel",_cp(CD,dim=True))
+    win.touchwin()
     win.noutrefresh()
 
 # ════════════════════════════════════════════════ INPUT ══════════════════════
